@@ -1,6 +1,0 @@
-logging==0.5.1.2
-pandas==2.3.3
-fastf1==3.6.1
-xgboost==2.1.4
-os
-logging
