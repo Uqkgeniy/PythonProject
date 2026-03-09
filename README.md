@@ -28,7 +28,7 @@ http://localhost:8000/ui    ← Красивый интерфейс
 ```
 Jolpica API → data.py → features.py → model.py → FastAPI → UI
      ↓            ↓           ↓         ↓        ↓
-Результаты → Признаки → SVR → Предсказание → JSON/HTML
+Результаты → Признаки   →  SVR  → Предсказание → JSON/HTML
 ```
 
 ### Ключевые признаки
