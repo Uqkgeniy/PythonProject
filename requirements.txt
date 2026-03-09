@@ -1,0 +1,11 @@
+logging==0.5.1.2
+pandas==2.3.3
+numpy==1.26.4
+fastf1==3.6.1
+xgboost==2.1.4
+fastapi==0.111.0
+uvicorn[standard]==0.30.0
+scikit-learn==1.5.0
+requests==2.32.3
+os
+logging
