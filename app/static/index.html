@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>F1 Race Predictor</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0a0a0a;
+      color: #ffffff;
+      font-family: 'Segoe UI', sans-serif;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #e10600;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 2px 20px rgba(225,6,0,0.4);
+    }
+
+    header h1 { font-size: 22px; font-weight: 700; letter-spacing: 1px; }
+    header span { font-size: 13px; opacity: 0.85; }
+
+    .container { max-width: 900px; margin: 40px auto; padding: 0 24px; }
+
+    .card {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+
+    .card h2 {
+      font-size: 16px;
+      color: #e10600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 16px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+    }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label { font-size: 12px; color: #888; text-transform: uppercase; }
+
+    input, select {
+      background: #0a0a0a;
+      border: 1px solid #333;
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 15px;
+      width: 120px;
+      outline: none;
+    }
+
+    input:focus, select:focus { border-color: #e10600; }
+
+    button {
+      background: #e10600;
+      color: white;
+      border: none;
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover { background: #ff1a0e; }
+    button:disabled { background: #444; cursor: not-allowed; }
+
+    .status {
+      font-size: 13px;
+      color: #888;
+      margin-top: 12px;
+      min-height: 20px;
+    }
+
+    .status.ok  { color: #4caf50; }
+    .status.err { color: #e10600; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+    }
+
+    th {
+      text-align: left;
+      font-size: 11px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 8px 12px;
+      border-bottom: 1px solid #2a2a2a;
+    }
+
+    td {
+      padding: 12px;
+      border-bottom: 1px solid #1e1e1e;
+      font-size: 15px;
+    }
+
+    tr:hover td { background: #222; }
+
+    .pos {
+      font-weight: 700;
+      font-size: 18px;
+      color: #e10600;
+      width: 40px;
+    }
+
+    .pos-1 { color: #FFD700; }
+    .pos-2 { color: #C0C0C0; }
+    .pos-3 { color: #CD7F32; }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      background: #2a2a2a;
+      color: #ccc;
+    }
+
+    .model-info {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .metric {
+      background: #0a0a0a;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 12px 20px;
+      text-align: center;
+    }
+
+    .metric .val { font-size: 24px; font-weight: 700; color: #e10600; }
+    .metric .lbl { font-size: 11px; color: #666; text-transform: uppercase; margin-top: 4px; }
+
+    .winner-badge {
+      background: #e10600;
+      color: white;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      margin-left: 8px;
+    }
+
+    #results-table { display: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🏎 F1 Race Predictor</h1>
+    <span>Предсказание финишного порядка · Machine Learning</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Предсказание -->
+  <div class="card">
+    <h2>Предсказание гонки</h2>
+    <div class="controls">
+      <div class="field">
+        <label>Год</label>
+        <input type="number" id="year" value="2026" min="2023" max="2030">
+      </div>
+      <div class="field">
+        <label>Номер ГП</label>
+        <input type="number" id="gp" value="1" min="1" max="24">
+      </div>
+      <button onclick="predict()">Предсказать</button>
+    </div>
+    <div class="status" id="predict-status"></div>
+
+    <div id="results-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Поз.</th>
+            <th>Гонщик</th>
+            <th>Команда</th>
+            <th>Старт</th>
+            <th>Очки</th>
+          </tr>
+        </thead>
+        <tbody id="predict-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Информация о модели -->
+  <div class="card">
+    <h2>Модель</h2>
+    <button onclick="loadModelInfo()">Обновить</button>
+    <div class="status" id="model-status"></div>
+    <div class="model-info" id="model-info" style="margin-top:16px"></div>
+  </div>
+
+  <!-- Обучение -->
+  <div class="card">
+    <h2>Обучение</h2>
+    <div class="controls">
+      <div class="field">
+        <label>Сезоны (через запятую)</label>
+        <input type="text" id="train-years" value="2024,2025" style="width:180px">
+      </div>
+      <button onclick="trainModel()" id="train-btn">Запустить</button>
+    </div>
+    <div class="status" id="train-status"></div>
+  </div>
+
+</div>
+
+<script>
+  const api = '';
+
+  async function predict() {
+    const year = document.getElementById('year').value;
+    const gp   = document.getElementById('gp').value;
+    const st   = document.getElementById('predict-status');
+    const tbl  = document.getElementById('results-table');
+
+    st.className = 'status';
+    st.textContent = 'Загружаю данные...';
+    tbl.style.display = 'none';
+
+    try {
+      const r = await fetch(`${api}/predict?gp=${gp}&year=${year}`);
+      const d = await r.json();
+
+      if (!r.ok) throw new Error(d.detail || 'Ошибка');
+
+      const body = document.getElementById('predict-body');
+      body.innerHTML = d.prediction.map(p => {
+        const posClass = p.predicted_position <= 3 ? `pos-${p.predicted_position}` : '';
+        return `
+          <tr>
+            <td class="pos ${posClass}">${p.predicted_position}</td>
+            <td><strong>${p.code}</strong></td>
+            <td><span class="badge">${p.constructorId}</span></td>
+            <td>${p.qualiPosition}</td>
+            <td>${p.driver_points}</td>
+          </tr>`;
+      }).join('');
+
+      st.className = 'status ok';
+      st.textContent = `✓ Модель: ${d.model_used} · ${d.prediction.length} гонщиков`;
+      tbl.style.display = 'block';
+
+    } catch(e) {
+      st.className = 'status err';
+      st.textContent = '✗ ' + e.message;
+    }
+  }
+
+  async function loadModelInfo() {
+    const st = document.getElementById('model-status');
+    const el = document.getElementById('model-info');
+    st.textContent = 'Загружаю...';
+
+    try {
+      const r = await fetch(`${api}/model/info`);
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail);
+
+      el.innerHTML = Object.entries(d)
+        .filter(([k]) => k !== 'winner')
+        .map(([name, v]) => `
+          <div class="metric">
+            <div class="val">${v.MAE}</div>
+            <div class="lbl">${name} MAE ${name === d.winner ? '<span class="winner-badge">winner</span>' : ''}</div>
+          </div>`
+        ).join('');
+
+      st.className = 'status ok';
+      st.textContent = `✓ Победитель: ${d.winner}`;
+    } catch(e) {
+      st.className = 'status err';
+      st.textContent = '✗ ' + e.message;
+    }
+  }
+
+  async function trainModel() {
+    const years = document.getElementById('train-years').value;
+    const btn   = document.getElementById('train-btn');
+    const st    = document.getElementById('train-status');
+
+    btn.disabled = true;
+    st.className = 'status';
+    st.textContent = 'Запускаю обучение...';
+
+    try {
+      const r = await fetch(`${api}/train?years=${years}`, { method: 'POST' });
+      const d = await r.json();
+      st.className = 'status ok';
+      st.textContent = '✓ ' + d.message + ' · ' + d.tip;
+    } catch(e) {
+      st.className = 'status err';
+      st.textContent = '✗ ' + e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // Загружаем инфо о модели при открытии
+  loadModelInfo();
+</script>
+</body>
+</html>

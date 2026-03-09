@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  f1-predictor:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./cache:/app/cache
+      - ./model.pkl:/app/model.pkl
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
