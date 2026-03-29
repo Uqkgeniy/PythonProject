@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 import fastf1
 import requests
 import pandas as pd
 import time
-
 from pathlib import Path
 import os
 
@@ -17,6 +18,7 @@ fastf1.Cache.enable_cache(str(CACHE_DIR))
 OPENF1_BASE = "https://api.openf1.org/v1"
 JOLPICA_BASE = "https://api.jolpi.ca/ergast/f1"
 
+
 def _jolpica_get(url: str) -> dict:
     try:
         resp = requests.get(url, timeout=10)
@@ -26,70 +28,63 @@ def _jolpica_get(url: str) -> dict:
         resp.raise_for_status()
         time.sleep(0.6)
         return resp.json().get("MRData", {})
-    except Exception as e:
-        print(f"[Jolpica] Ошибка запроса {url}: {e}")
+    except Exception:
         return {}
 
 
 def get_current_drivers() -> pd.DataFrame:
     data = _jolpica_get(f"{JOLPICA_BASE}/current/drivers.json?limit=100")
     drivers = data.get("DriverTable", {}).get("Drivers", [])
-
     if not drivers:
         return pd.DataFrame(columns=["driverId", "code", "name", "number"])
-
     return pd.DataFrame([{
         "driverId": d["driverId"],
-        "code":     d.get("code", d["driverId"][:3].upper()),
-        "name":     f"{d['givenName']} {d['familyName']}",
-        "number":   int(d.get("permanentNumber", 0))
+        "code": d.get("code", d["driverId"][:3].upper()),
+        "name": f"{d['givenName']} {d['familyName']}",
+        "number": int(d.get("permanentNumber", 0))
     } for d in drivers])
 
 
 def get_driver_standings(year: int, round_num: int) -> pd.DataFrame:
     if round_num <= 1:
         drivers = get_current_drivers()
-        drivers["driver_points"]    = 0.0
+        drivers["driver_points"] = 0.0
         drivers["driver_champ_pos"] = range(1, len(drivers) + 1)
-        drivers["driver_wins"]      = 0
-        return drivers[["code", "driver_points",
-                         "driver_champ_pos", "driver_wins"]]
+        drivers["driver_wins"] = 0
+        return drivers[["code", "driver_points", "driver_champ_pos", "driver_wins"]]
 
     url = f"{JOLPICA_BASE}/{year}/{round_num - 1}/driverStandings.json"
     data = _jolpica_get(url)
     standings_lists = data.get("StandingsTable", {}).get("StandingsLists", [])
 
     if not standings_lists:
-        return pd.DataFrame(columns=["code", "driver_points",
-                                      "driver_champ_pos", "driver_wins"])
+        return pd.DataFrame(columns=["code", "driver_points", "driver_champ_pos", "driver_wins"])
 
     standings = standings_lists[0]["DriverStandings"]
     return pd.DataFrame([{
-        "code":             s["Driver"].get("code", ""),
-        "driver_points":    float(s["points"]),
+        "code": s["Driver"].get("code", ""),
+        "driver_points": float(s["points"]),
         "driver_champ_pos": int(s["position"]),
-        "driver_wins":      int(s["wins"])
+        "driver_wins": int(s["wins"])
     } for s in standings])
 
 
 def get_constructor_standings(year: int, round_num: int) -> pd.DataFrame:
     if round_num <= 1:
-        return pd.DataFrame(columns=["constructorId",
-                                      "constructor_points", "constructor_pos"])
+        return pd.DataFrame(columns=["constructorId", "constructor_points", "constructor_pos"])
 
     url = f"{JOLPICA_BASE}/{year}/{round_num - 1}/constructorStandings.json"
     data = _jolpica_get(url)
     standings_lists = data.get("StandingsTable", {}).get("StandingsLists", [])
 
     if not standings_lists:
-        return pd.DataFrame(columns=["constructorId",
-                                      "constructor_points", "constructor_pos"])
+        return pd.DataFrame(columns=["constructorId", "constructor_points", "constructor_pos"])
 
     standings = standings_lists[0]["ConstructorStandings"]
     return pd.DataFrame([{
-        "constructorId":      s["Constructor"]["constructorId"],
+        "constructorId": s["Constructor"]["constructorId"],
         "constructor_points": float(s["points"]),
-        "constructor_pos":    int(s["position"])
+        "constructor_pos": int(s["position"])
     } for s in standings])
 
 
@@ -117,18 +112,14 @@ def get_qualifying_results(year: int, round_num: int) -> pd.DataFrame:
     full_list = []
     for i, driver in enumerate(all_drivers.itertuples(), 1):
         code = driver.code
-
         quali_row = next((q for q in quali_results if q["code"] == code), None)
-
         row = {
             "code": code,
             "constructorId": quali_row["constructorId"] if quali_row else driver_to_team.get(code, "unknown"),
             "qualiPosition": quali_row["qualiPosition"] if quali_row else i + 20
         }
-
         if quali_row:
             row["qualiPosition"] = quali_row["qualiPosition"]
-
         full_list.append(row)
 
     return pd.DataFrame(full_list)
@@ -144,8 +135,24 @@ def get_race_results(year: int, round_num: int) -> pd.DataFrame:
 
     results = races[0].get("Results", [])
     return pd.DataFrame([{
-        "code":          r["Driver"].get("code", ""),
+        "code": r["Driver"].get("code", ""),
         "race_position": int(r["position"])
+    } for r in results])
+
+
+def get_sprint_results(year: int, round_num: int) -> pd.DataFrame:
+    url = f"{JOLPICA_BASE}/{year}/{round_num}/sprint.json"
+    data = _jolpica_get(url)
+    races = data.get("RaceTable", {}).get("Races", [])
+
+    if not races:
+        return pd.DataFrame(columns=["code", "sprint_position", "sprint_points"])
+
+    results = races[0].get("SprintResults", [])
+    return pd.DataFrame([{
+        "code": r["Driver"].get("code", ""),
+        "sprint_position": int(r["position"]),
+        "sprint_points": float(r["points"])
     } for r in results])
 
 
@@ -153,7 +160,6 @@ def _get_available_fp_sessions(year: int, round_num: int) -> list[str]:
     try:
         event = fastf1.get_event(year, round_num)
         fmt = event.get("EventFormat", "conventional")
-
         if fmt == "sprint_qualifying":
             return ["FP1"]
         elif fmt in ("sprint_shootout", "sprint"):
@@ -166,12 +172,7 @@ def _get_available_fp_sessions(year: int, round_num: int) -> list[str]:
 
 def _extract_telemetry_for_driver(session: fastf1.core.Session, driver: str) -> dict | None:
     try:
-        driver_laps = (
-            session.laps
-            .pick_drivers(driver)
-            .pick_accurate()
-        )
-
+        driver_laps = session.laps.pick_drivers(driver).pick_accurate()
         if driver_laps.empty:
             return None
 
@@ -192,23 +193,19 @@ def _extract_telemetry_for_driver(session: fastf1.core.Session, driver: str) -> 
             return None
 
         brake_arr = car_data["Brake"].astype(bool)
-
         return {
-            "driver":       driver,
-            "avg_speed":    float(car_data["Speed"].mean()),
-            "max_speed":    float(car_data["Speed"].max()),
+            "driver": driver,
+            "avg_speed": float(car_data["Speed"].mean()),
+            "max_speed": float(car_data["Speed"].max()),
             "throttle_pct": float((car_data["Throttle"] > 90).mean() * 100),
-            "brake_pct":    float(brake_arr.mean() * 100),
-            "drs_pct":      float((car_data["DRS"] >= 10).mean() * 100),
+            "brake_pct": float(brake_arr.mean() * 100),
+            "drs_pct": float((car_data["DRS"] >= 10).mean() * 100),
         }
-
-    except Exception as e:
-        print(f"[Telemetry] Ошибка {driver}: {e}")
+    except Exception:
         return None
 
 
 def _get_openf1_session_key(year: int, round_num: int, session_type: str) -> int | None:
-
     url = f"{OPENF1_BASE}/sessions?year={year}&session_name={session_type}"
     data = _openf1_get(url)
     if not data:
@@ -237,8 +234,7 @@ def _openf1_get(url: str) -> list:
         resp = requests.get(url, timeout=45)
         resp.raise_for_status()
         return resp.json()
-    except Exception as e:
-        print(f"[OpenF1] Ошибка {url}: {e}")
+    except Exception:
         return []
 
 
@@ -249,7 +245,6 @@ def get_practice_telemetry(year: int, round_num: int) -> pd.DataFrame:
     for fp_name in fp_names:
         session_key = _get_openf1_session_key(year, round_num, fp_name)
         if not session_key:
-            print(f"[OpenF1] {fp_name}: сессия не найдена")
             continue
 
         drivers_url = f"{OPENF1_BASE}/drivers?session_key={session_key}"
@@ -261,35 +256,27 @@ def get_practice_telemetry(year: int, round_num: int) -> pd.DataFrame:
             driver_num = driver["driver_number"]
             code = driver.get("name_acronym", str(driver_num))
 
-            tel_url = (f"{OPENF1_BASE}/car_data"
-                       f"?session_key={session_key}"
-                       f"&driver_number={driver_num}")
+            tel_url = f"{OPENF1_BASE}/car_data?session_key={session_key}&driver_number={driver_num}"
             tel_data = _openf1_get(tel_url)
-
             if not tel_data:
                 continue
 
             tel_df = pd.DataFrame(tel_data)
-
             required = {"speed", "throttle", "brake", "drs"}
             if not required.issubset(tel_df.columns):
                 continue
 
             records.append({
-                "driver":       code,
-                "fp":           fp_name,
-                "avg_speed":    float(tel_df["speed"].mean()),
-                "max_speed":    float(tel_df["speed"].max()),
+                "driver": code,
+                "fp": fp_name,
+                "avg_speed": float(tel_df["speed"].mean()),
+                "max_speed": float(tel_df["speed"].max()),
                 "throttle_pct": float((tel_df["throttle"] > 90).mean() * 100),
-                "brake_pct":    float((tel_df["brake"] > 0).mean() * 100),
-                "drs_pct":      float((tel_df["drs"] >= 10).mean() * 100),
+                "brake_pct": float((tel_df["brake"] > 0).mean() * 100),
+                "drs_pct": float((tel_df["drs"] >= 10).mean() * 100),
             })
 
-        print(f"[OpenF1] ✓ {fp_name} (key={session_key}): "
-              f"{len(drivers)} гонщиков")
-
     if not records:
-        print(f"[OpenF1] Нет данных для {year} R{round_num}")
         return pd.DataFrame(columns=[
             "driver", "avg_speed", "max_speed",
             "throttle_pct", "brake_pct", "drs_pct"
@@ -299,11 +286,30 @@ def get_practice_telemetry(year: int, round_num: int) -> pd.DataFrame:
     return (
         df.groupby("driver")
         .agg({
-            "avg_speed":    "mean",
-            "max_speed":    "mean",
+            "avg_speed": "mean",
+            "max_speed": "mean",
             "throttle_pct": "mean",
-            "brake_pct":    "mean",
-            "drs_pct":      "mean",
+            "brake_pct": "mean",
+            "drs_pct": "mean",
         })
         .reset_index()
     )
+
+
+def get_weather_data(year: int, round_num: int) -> pd.DataFrame:
+    session_key = _get_openf1_session_key(year, round_num, "Race")
+    if not session_key:
+        return pd.DataFrame()
+
+    url = f"{OPENF1_BASE}/weather?session_key={session_key}"
+    weather = _openf1_get(url)
+
+    if not weather:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(weather)
+    return pd.DataFrame([{
+        "track_temperature": df["track_temperature"].mean(),
+        "air_temperature": df["air_temperature"].mean(),
+        "rainfall": 1 if df["rainfall"].sum() > 0 else 0
+    }])
